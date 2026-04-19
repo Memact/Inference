@@ -1,0 +1,37 @@
+{
+  "name": "memact-inference",
+  "private": true,
+  "version": "0.0.0",
+  "description": "Deterministic meaning layer for Memact captured activity.",
+  "license": "SEE LICENSE IN LICENSE",
+  "type": "module",
+  "main": "./src/engine.mjs",
+  "exports": {
+    ".": "./src/engine.mjs",
+    "./cli": "./src/cli.mjs"
+  },
+  "keywords": [
+    "memact",
+    "inference",
+    "themes",
+    "meaning",
+    "deterministic"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/Memact/Inference.git"
+  },
+  "homepage": "https://github.com/Memact/Inference",
+  "engines": {
+    "node": ">=20"
+  },
+  "bin": {
+    "memact-inference": "./src/cli.mjs"
+  },
+  "scripts": {
+    "check": "node ./scripts/check.mjs",
+    "infer": "node ./src/cli.mjs",
+    "sample": "node ./src/cli.mjs --input examples/sample-capture-snapshot.json --format report",
+    "sample:json": "node ./src/cli.mjs --input examples/sample-capture-snapshot.json --format json"
+  }
+}

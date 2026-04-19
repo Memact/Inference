@@ -1,0 +1,43 @@
+{
+  "activities": [
+    {
+      "id": "act_1",
+      "label": "YC founder interview about shipping MVPs",
+      "started_at": "2026-04-01T09:00:00.000Z",
+      "ended_at": "2026-04-01T09:12:00.000Z",
+      "events": [
+        {
+          "title": "How founders ship MVPs quickly",
+          "url": "https://youtube.com/watch?v=founder-mvp",
+          "domain": "youtube.com"
+        }
+      ]
+    },
+    {
+      "id": "act_2",
+      "label": "Search: how to launch product fast",
+      "started_at": "2026-04-01T09:18:00.000Z",
+      "ended_at": "2026-04-01T09:20:00.000Z",
+      "events": [
+        {
+          "title": "how to launch product fast",
+          "url": "https://google.com/search?q=how+to+launch+product+fast",
+          "domain": "google.com"
+        }
+      ]
+    },
+    {
+      "id": "act_3",
+      "label": "Debugging React extension API in terminal",
+      "started_at": "2026-04-01T10:00:00.000Z",
+      "ended_at": "2026-04-01T10:40:00.000Z",
+      "events": [
+        {
+          "title": "React API debug notes",
+          "url": "https://github.com/Memact/Capture",
+          "domain": "github.com"
+        }
+      ]
+    }
+  ]
+}
