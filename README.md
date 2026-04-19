@@ -86,13 +86,13 @@ npm run sample
 Analyze a Capture snapshot:
 
 ```powershell
-npm run infer -- --input ..\captanet-snapshot-latest.json --format report
+npm run infer -- --input ..\capture-snapshot-latest.json --format report
 ```
 
 Emit JSON for the next layer:
 
 ```powershell
-npm run infer -- --input ..\captanet-snapshot-latest.json --format json
+npm run infer -- --input ..\capture-snapshot-latest.json --format json
 ```
 
 ## Design Rules
