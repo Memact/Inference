@@ -10,12 +10,12 @@ It answers:
 
 Inference consumes Capture snapshots and emits stable theme records that downstream systems can trust without reading Capture internals.
 
-Inference is part of Memact's citation and answer engine. It turns consumed website evidence into canonical meaning so Interface, Origin, and Influence can answer with sources instead of unsupported prose.
+Inference is part of Memact's citation and answer engine. It turns consumed website evidence into canonical meaning so Schema, Interface, Influence, and Origin can answer with sources instead of unsupported prose.
 
 ## Pipeline Position
 
 ```text
-Capture -> Inference -> Schema -> Interface / Query -> Origin + Influence
+Capture -> Inference -> Schema -> Interface / Query -> Influence / Origin
 ```
 
 Inference does not decide what shaped a thought. It only turns raw activity into evidence-backed meaning.
@@ -25,7 +25,7 @@ Inference does not decide what shaped a thought. It only turns raw activity into
 - reads Capture snapshot exports
 - normalizes activity/event text into canonical themes
 - keeps source evidence attached to each inferred record
-- emits deterministic JSON for Schema, Origin, Influence, and Interface
+- emits deterministic JSON for Schema, Interface, Influence, and Origin
 - avoids LLM reasoning and hidden probabilistic claims
 - preserves enough source evidence for citation-backed answers
 
