@@ -86,17 +86,20 @@ Run the sample:
 npm run sample
 ```
 
-Analyze a Capture snapshot:
+Analyze a manual Capture snapshot:
 
 ```powershell
-npm run infer -- --input ..\capture-snapshot-latest.json --format report
+npm run infer -- --input ..\capture-snapshot-<timestamp>-<id>.json --format report
 ```
 
 Emit JSON for the next layer:
 
 ```powershell
-npm run infer -- --input ..\capture-snapshot-latest.json --format json
+npm run infer -- --input ..\capture-snapshot-<timestamp>-<id>.json --format json
 ```
+
+Live Memact clients should not depend on a rolling downloaded snapshot file.
+They should use Capture's bridge/status signature and request a snapshot only when memory changed.
 
 ## Design Rules
 
