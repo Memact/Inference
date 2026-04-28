@@ -23,8 +23,11 @@ Inference does not decide what shaped a thought. It only turns raw activity into
 ## What It Does
 
 - reads Capture snapshot exports
-- normalizes activity/event text into canonical themes
-- keeps source evidence attached to each inferred record
+- decides which activities are meaningful enough to keep
+- turns meaningful activities into evidence packets
+- normalizes retained activity/event text into canonical themes
+- keeps source evidence attached to each retained packet
+- emits a packet network of packets, themes, and cited sources
 - emits deterministic JSON for Schema, Interface, Influence, and Origin
 - avoids LLM reasoning and hidden probabilistic claims
 - preserves enough source evidence for citation-backed answers
@@ -37,10 +40,17 @@ Inference does not decide what shaped a thought. It only turns raw activity into
   "theme_counts": {
     "startup": 2
   },
+  "thresholds": {
+    "meaningful_score": 0.38
+  },
   "records": [
     {
       "id": "act_1",
+      "packet_id": "packet:act_1",
       "source_label": "YC founder interview about shipping MVPs",
+      "meaningful": true,
+      "meaningful_score": 0.64,
+      "meaning_reasons": ["1 matched theme", "brief attention", "source can be cited"],
       "canonical_themes": ["startup"],
       "themes": [
         {
@@ -57,7 +67,11 @@ Inference does not decide what shaped a thought. It only turns raw activity into
         }
       ]
     }
-  ]
+  ],
+  "packet_network": {
+    "nodes": [],
+    "edges": []
+  }
 }
 ```
 
@@ -105,6 +119,9 @@ They should use Capture's bridge/status signature and request a snapshot only wh
 
 - deterministic first
 - no AI-generated conclusions
+- raw Capture activity is not automatically meaningful
+- every retained packet must have deterministic reasons
+- schemas and origins should consume retained packets, not raw activity
 - every theme must keep source evidence
 - downstream systems consume this output contract, not Capture internals
 
