@@ -15,10 +15,10 @@ Inference is part of Memact's citation and answer engine. It turns consumed webs
 ## Pipeline Position
 
 ```text
-Capture -> Inference -> Schema -> Interface / Query -> Influence / Origin
+Capture -> Inference -> Schema -> Memory -> Interface / Query -> Influence / Origin
 ```
 
-Inference does not decide what shaped a thought. It only turns raw activity into evidence-backed meaning.
+Inference does not decide what shaped a thought. It only turns raw activity into evidence-backed meaning. Memory later stores the schema/activity packets that survive and exposes RAG/CRUD for query-time use.
 
 ## What It Does
 
