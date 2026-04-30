@@ -2,64 +2,53 @@
 
 Version: `v0.0`
 
-Inference is the deterministic meaning layer in the Memact architecture.
+Inference is the meaning filter.
 
-It answers:
-
-`What is this captured activity about?`
-
-Inference consumes Capture snapshots and emits stable theme records that downstream systems can trust without reading Capture internals.
-
-Inference is part of Memact's citation and answer engine. It turns consumed website evidence into canonical meaning so Schema, Interface, Influence, and Origin can answer with sources instead of unsupported prose.
-
-## Pipeline Position
+It owns one job:
 
 ```text
-Capture -> Inference -> Schema -> Memory -> Interface / Query -> Influence / Origin
+turn captured activity into retained evidence packets
 ```
 
-Inference does not decide what shaped a thought. It only turns raw activity into evidence-backed meaning. Memory later stores the schema/activity packets that survive and exposes RAG/CRUD for query-time use.
+Inference does not capture browser data, form long-term schemas, store memory, or write user-facing answers.
 
-## What It Does
+## What This Repo Owns
 
-- reads Capture snapshot exports
-- decides which activities are meaningful enough to keep
-- turns meaningful activities into evidence packets
-- normalizes retained activity/event text into canonical themes
-- keeps source evidence attached to each retained packet
-- emits a packet network of packets, themes, and cited sources
-- emits deterministic JSON for Schema, Interface, Influence, and Origin
-- avoids LLM reasoning and hidden probabilistic claims
-- preserves enough source evidence for citation-backed answers
+- Reads Capture snapshots.
+- Scores whether activity is meaningful enough to keep.
+- Normalizes activity text into stable themes.
+- Keeps cited source evidence attached to every retained packet.
+- Emits packet networks for Schema, Memory, Origin, Influence, and Website.
+- Runs without LLM reasoning.
 
-## Public Output Contract
+## Input
+
+Inference expects a Capture snapshot:
+
+```json
+{
+  "system": "capture",
+  "events": [],
+  "sessions": [],
+  "activities": [],
+  "content_units": [],
+  "graph_packets": []
+}
+```
+
+## Output
+
+Inference emits `memact.inference.v0`:
 
 ```json
 {
   "schema_version": "memact.inference.v0",
-  "theme_counts": {
-    "startup": 2
-  },
-  "thresholds": {
-    "meaningful_score": 0.38
-  },
   "records": [
     {
-      "id": "act_1",
       "packet_id": "packet:act_1",
-      "source_label": "YC founder interview about shipping MVPs",
       "meaningful": true,
       "meaningful_score": 0.64,
-      "meaning_reasons": ["1 matched theme", "brief attention", "source can be cited"],
       "canonical_themes": ["startup"],
-      "themes": [
-        {
-          "id": "startup",
-          "label": "Startup / building",
-          "score": 3,
-          "evidence_terms": ["founder", "mvp", "ship"]
-        }
-      ],
       "sources": [
         {
           "domain": "youtube.com",
@@ -75,7 +64,7 @@ Inference does not decide what shaped a thought. It only turns raw activity into
 }
 ```
 
-## Terminal Quickstart
+## Run Locally
 
 Prerequisites:
 
@@ -88,42 +77,36 @@ Install:
 npm install
 ```
 
-Run the validation pass:
+Validate:
 
 ```powershell
 npm run check
 ```
 
-Run the sample:
+Run sample:
 
 ```powershell
 npm run sample
 ```
 
-Analyze a manual Capture snapshot:
+Run against a Capture snapshot:
 
 ```powershell
-npm run infer -- --input ..\capture-snapshot-<timestamp>-<id>.json --format report
+npm run infer -- --input path\to\capture-snapshot.json --format report
 ```
 
-Emit JSON for the next layer:
+JSON output:
 
 ```powershell
-npm run infer -- --input ..\capture-snapshot-<timestamp>-<id>.json --format json
+npm run infer -- --input path\to\capture-snapshot.json --format json
 ```
 
-Live Memact clients should not depend on a rolling downloaded snapshot file.
-They should use Capture's bridge/status signature and request a snapshot only when memory changed.
+## Contract
 
-## Design Rules
-
-- deterministic first
-- no AI-generated conclusions
-- raw Capture activity is not automatically meaningful
-- every retained packet must have deterministic reasons
-- schemas and origins should consume retained packets, not raw activity
-- every theme must keep source evidence
-- downstream systems consume this output contract, not Capture internals
+- Input comes from Capture's public snapshot contract.
+- Output is evidence packets, not conclusions about a thought.
+- Schema decides whether repeated evidence forms a virtual schema.
+- Memory decides what survives.
 
 ## License
 
