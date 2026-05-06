@@ -120,6 +120,8 @@ export function inferActivityMeaning(activity, rules = DEFAULT_THEME_RULES, opti
     text_excerpt: collectActivityText(activity).slice(0, 320),
   };
   const canonicalThemes = themes.map((theme) => theme.id);
+  const candidateNodes = normalizeCandidateNodes(activity.graph_nodes, themes);
+  const candidateEdges = normalizeCandidateEdges(activity.graph_edges, candidateNodes);
   const packet = {
     id: `packet:${id}`,
     claim_type: "meaning_packet",
@@ -132,6 +134,10 @@ export function inferActivityMeaning(activity, rules = DEFAULT_THEME_RULES, opti
     reasons: meaningfulness.reasons,
     sources,
     evidence,
+    semantic_graph: {
+      nodes: candidateNodes,
+      edges: candidateEdges,
+    },
   };
 
   return {
@@ -147,17 +153,31 @@ export function inferActivityMeaning(activity, rules = DEFAULT_THEME_RULES, opti
     canonical_themes: canonicalThemes,
     sources,
     evidence,
+    candidate_nodes: candidateNodes,
+    candidate_edges: candidateEdges,
     packet,
   };
 }
 
 export function normalizeActivities(snapshot) {
-  if (Array.isArray(snapshot?.activities) && snapshot.activities.length) {
-    return snapshot.activities;
-  }
+  const activities = Array.isArray(snapshot?.activities) ? snapshot.activities : [];
+  const events = Array.isArray(snapshot?.events) ? snapshot.events : [];
+  const graphPackets = Array.isArray(snapshot?.graph_packets) ? snapshot.graph_packets : [];
+  const contentUnits = Array.isArray(snapshot?.content_units) ? snapshot.content_units : [];
+  const output = [];
+  const seen = new Set();
+  const pushActivity = (activity) => {
+    if (!activity) return;
+    const key = String(activity.id ?? activity.packet_id ?? activity.url ?? activity.label ?? "");
+    if (key && seen.has(key)) return;
+    if (key) seen.add(key);
+    output.push(activity);
+  };
 
-  if (Array.isArray(snapshot?.events)) {
-    return snapshot.events.map((event, index) => ({
+  activities.forEach(pushActivity);
+
+  if (!activities.length) {
+    events.forEach((event, index) => pushActivity({
       id: event.id ?? `event-${index + 1}`,
       started_at: event.occurred_at ?? event.timestamp ?? null,
       ended_at: event.occurred_at ?? event.timestamp ?? null,
@@ -176,7 +196,75 @@ export function normalizeActivities(snapshot) {
     }));
   }
 
-  return [];
+  graphPackets.forEach((packet, index) => {
+    pushActivity(activityFromGraphPacket(packet, index, events));
+  });
+
+  contentUnits
+    .filter((unit) => !unit?.packet_id)
+    .slice(0, 80)
+    .forEach((unit, index) => {
+      pushActivity(activityFromContentUnit(unit, index));
+    });
+
+  return output;
+}
+
+function activityFromGraphPacket(packet, index, events = []) {
+  const packetId = packet?.packet_id || `graph-${index + 1}`;
+  const contentUnits = Array.isArray(packet?.content_units) ? packet.content_units : [];
+  const nodes = Array.isArray(packet?.nodes) ? packet.nodes : [];
+  const edges = Array.isArray(packet?.edges) ? packet.edges : [];
+  const linkedEvent = events.find((event) => String(event.id || "") === String(packet?.event_id || ""));
+  const unitText = contentUnits.map((unit) => unit?.text).filter(Boolean).join("\n");
+  const nodeText = nodes.map((node) => node?.label).filter(Boolean).join(", ");
+  const edgeText = edges
+    .map((edge) => edge?.evidence || `${edge?.from || ""} ${edge?.type || ""} ${edge?.to || ""}`)
+    .filter(Boolean)
+    .join("\n");
+  const title = packet?.title || linkedEvent?.title || linkedEvent?.window_title || packet?.domain || "Captured content";
+  const fullText = [unitText, nodeText, edgeText].filter(Boolean).join("\n\n");
+
+  return {
+    id: `graph:${packetId}`,
+    packet_id: packetId,
+    started_at: packet?.captured_at || linkedEvent?.occurred_at || null,
+    ended_at: packet?.captured_at || linkedEvent?.occurred_at || null,
+    label: title,
+    title,
+    url: packet?.url || linkedEvent?.url,
+    domain: packet?.domain || linkedEvent?.domain,
+    application: linkedEvent?.application || (packet?.source === "device_helper" ? "Device" : "Browser"),
+    interaction_type: packet?.packet_type || "graph_capture",
+    content_text: fullText.slice(0, 420),
+    full_text: fullText,
+    display_full_text: fullText,
+    graph_nodes: nodes,
+    graph_edges: edges,
+    content_units: contentUnits,
+    source_packet: packet,
+    events: linkedEvent ? [linkedEvent] : [],
+  };
+}
+
+function activityFromContentUnit(unit, index) {
+  const title = unit?.title || unit?.section || unit?.location || "Captured text";
+  return {
+    id: `content-unit:${unit?.id || unit?.unit_id || index + 1}`,
+    packet_id: unit?.packet_id || null,
+    started_at: unit?.captured_at || null,
+    ended_at: unit?.captured_at || null,
+    label: title,
+    title,
+    url: unit?.url,
+    domain: domainFromUrl(unit?.url),
+    application: "Browser",
+    interaction_type: unit?.unit_type || "content_unit",
+    content_text: unit?.text,
+    full_text: unit?.text,
+    display_full_text: unit?.text,
+    content_units: [unit],
+  };
 }
 
 export function formatInferenceReport(result) {
@@ -218,6 +306,11 @@ function collectActivityText(activity) {
     activity.full_text,
     activity.display_full_text,
     activity.description,
+    ...(Array.isArray(activity.content_units) ? activity.content_units.map((unit) => unit?.text) : []),
+    ...(Array.isArray(activity.graph_nodes) ? activity.graph_nodes.map((node) => node?.label) : []),
+    ...(Array.isArray(activity.graph_edges)
+      ? activity.graph_edges.map((edge) => edge?.evidence || `${edge?.from || ""} ${edge?.type || ""} ${edge?.to || ""}`)
+      : []),
   ];
 
   if (contextProfile) {
@@ -261,6 +354,9 @@ function extractSources(activity) {
   };
 
   pushSource(activity.url, activity.domain, activity.title);
+  if (activity.source_packet) {
+    pushSource(activity.source_packet.url, activity.source_packet.domain, activity.source_packet.title);
+  }
 
   if (Array.isArray(activity.events)) {
     activity.events.forEach((event) => pushSource(event.url, event.domain, event.title ?? event.window_title));
@@ -278,6 +374,19 @@ function domainFromUrl(value) {
   }
 }
 
+function normalizeText(value, maxLength = 0) {
+  const text = String(value || "").replace(/\s+/g, " ").trim();
+  if (!maxLength || text.length <= maxLength) return text;
+  return `${text.slice(0, maxLength - 3).trim()}...`;
+}
+
+function slug(value) {
+  return normalizeText(value, 160)
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "_")
+    .replace(/^_+|_+$/g, "") || "node";
+}
+
 function countThemes(records) {
   return records.reduce((counts, record) => {
     record.canonical_themes.forEach((theme) => {
@@ -293,6 +402,9 @@ function scoreMeaningfulness(activity, themes) {
   const sources = extractSources(activity);
   const durationSeconds = durationInSeconds(activity);
   const interactionTypes = collectInteractionTypes(activity);
+  const contentUnitCount = Array.isArray(activity.content_units) ? activity.content_units.length : 0;
+  const graphNodeCount = Array.isArray(activity.graph_nodes) ? activity.graph_nodes.length : 0;
+  const graphEdgeCount = Array.isArray(activity.graph_edges) ? activity.graph_edges.length : 0;
   const reasons = [];
   let score = 0;
 
@@ -329,6 +441,22 @@ function scoreMeaningfulness(activity, themes) {
   if (sources.some((source) => isHighValueSource(source))) {
     score += 0.12;
     reasons.push("source can be cited");
+  }
+
+  if (contentUnitCount >= 3) {
+    score += 0.12;
+    reasons.push("captured content units");
+  } else if (contentUnitCount) {
+    score += 0.07;
+    reasons.push("captured content unit");
+  }
+
+  if (graphNodeCount >= 4 || graphEdgeCount >= 2) {
+    score += 0.14;
+    reasons.push("content graph evidence");
+  } else if (graphNodeCount || graphEdgeCount) {
+    score += 0.08;
+    reasons.push("content graph signal");
   }
 
   if (looksLowValue(activity, text, sources)) {
@@ -383,6 +511,35 @@ function buildPacketNetwork(records) {
       });
     });
 
+    (record.candidate_nodes ?? []).forEach((candidateNode) => {
+      const nodeId = candidateNode.id || `concept:${slug(candidateNode.label || candidateNode.type)}`;
+      addNode({
+        id: nodeId,
+        type: candidateNode.type || "concept",
+        category: candidateNode.category || "semantic_node",
+        label: candidateNode.label || nodeId,
+        confidence: candidateNode.confidence ?? null,
+      });
+      edges.push({
+        from: packetId,
+        to: nodeId,
+        type: "contains_semantic_node",
+        weight: Number(candidateNode.confidence ?? 0.62),
+      });
+    });
+
+    (record.candidate_edges ?? []).forEach((candidateEdge) => {
+      if (!candidateEdge.from || !candidateEdge.to) return;
+      edges.push({
+        from: candidateEdge.from,
+        to: candidateEdge.to,
+        type: candidateEdge.type || "related_to",
+        category: candidateEdge.category || "semantic_edge",
+        weight: Number(candidateEdge.confidence ?? 0.58),
+        evidence: candidateEdge.evidence || "",
+      });
+    });
+
     (record.sources ?? []).slice(0, 4).forEach((source) => {
       const sourceKey = source.url || source.domain;
       if (!sourceKey) return;
@@ -404,6 +561,80 @@ function buildPacketNetwork(records) {
   });
 
   return { nodes, edges };
+}
+
+function normalizeCandidateNodes(nodes = [], themes = []) {
+  const output = [];
+  const seen = new Set();
+  const push = (node) => {
+    const label = normalizeText(node?.label || node?.id || "", 120);
+    if (!label) return;
+    const id = node?.id ? String(node.id) : `concept:${slug(label)}`;
+    if (seen.has(id)) return;
+    seen.add(id);
+    output.push({
+      id,
+      label,
+      type: normalizeText(node?.type || "concept", 80).toLowerCase(),
+      category: semanticNodeCategory(node?.type || "concept"),
+      confidence: Number(node?.confidence ?? node?.score ?? 0.62),
+    });
+  };
+
+  (Array.isArray(nodes) ? nodes : []).slice(0, 24).forEach(push);
+  themes.slice(0, 8).forEach((theme) => push({
+    id: `theme:${theme.id}`,
+    label: theme.label || theme.id,
+    type: "theme",
+    confidence: Math.min(1, Number(theme.score || 1) / 4),
+  }));
+
+  return output;
+}
+
+function normalizeCandidateEdges(edges = [], nodes = []) {
+  const nodeIds = new Set(nodes.map((node) => node.id));
+  return (Array.isArray(edges) ? edges : [])
+    .slice(0, 32)
+    .map((edge) => {
+      const from = normalizeGraphEndpoint(edge?.from, nodeIds);
+      const to = normalizeGraphEndpoint(edge?.to, nodeIds);
+      if (!from || !to || from === to) return null;
+      const type = normalizeText(edge?.type || "related_to", 80).toLowerCase().replace(/[^a-z0-9]+/g, "_").replace(/^_+|_+$/g, "");
+      return {
+        from,
+        to,
+        type,
+        category: semanticEdgeCategory(type),
+        evidence: normalizeText(edge?.evidence, 240),
+        confidence: Number(edge?.confidence ?? 0.58),
+      };
+    })
+    .filter(Boolean);
+}
+
+function normalizeGraphEndpoint(value, knownIds) {
+  const text = normalizeText(value, 120);
+  if (!text) return "";
+  if (knownIds.has(text)) return text;
+  return `concept:${slug(text)}`;
+}
+
+function semanticNodeCategory(type) {
+  const normalized = normalizeText(type, 80).toLowerCase();
+  if (["emotion", "affect", "feeling"].includes(normalized)) return "emotion";
+  if (["action", "behavior", "intent"].includes(normalized)) return "action";
+  if (["person", "source", "platform", "tool", "media_source"].includes(normalized)) return "source_context";
+  if (["claim", "event"].includes(normalized)) return "claim_or_event";
+  if (normalized === "theme") return "theme";
+  return "concept";
+}
+
+function semanticEdgeCategory(type) {
+  if (/shape|affect|lead|change|cause|trigger|improve|reduce/.test(type)) return "possible_transition";
+  if (/part|example|linked|related|similar/.test(type)) return "association";
+  if (/cite|source|evidence|support/.test(type)) return "evidence";
+  return "semantic_relation";
 }
 
 function normalizeContextProfile(activity) {

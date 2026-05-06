@@ -16,6 +16,7 @@ Inference does not capture browser data, form long-term schemas, store memory, o
 
 - Reads Capture snapshots.
 - Scores whether activity is meaningful enough to keep.
+- Decides what retained activity should become semantic nodes and edges.
 - Normalizes activity text into stable themes.
 - Keeps cited source evidence attached to every retained packet.
 - Emits packet networks for Schema, Memory, Origin, Influence, and Website.
@@ -49,6 +50,8 @@ Inference emits `memact.inference.v0`:
       "meaningful": true,
       "meaningful_score": 0.64,
       "canonical_themes": ["startup"],
+      "candidate_nodes": [],
+      "candidate_edges": [],
       "sources": [
         {
           "domain": "youtube.com",
@@ -63,6 +66,10 @@ Inference emits `memact.inference.v0`:
   }
 }
 ```
+
+Inference is where semantic understanding starts. Capture may collect possible
+content units and raw graph hints, but Inference decides whether those hints
+are meaningful enough to keep as candidate nodes and edges.
 
 ## Run Locally
 
@@ -105,6 +112,8 @@ npm run infer -- --input path\to\capture-snapshot.json --format json
 
 - Input comes from Capture's public snapshot contract.
 - Output is evidence packets, not conclusions about a thought.
+- Output may contain candidate nodes and edges, but Schema decides whether they
+  organize into durable cognitive-style schemas.
 - Schema decides whether repeated evidence forms a virtual schema.
 - Memory decides what survives.
 
