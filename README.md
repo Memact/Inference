@@ -19,7 +19,7 @@ Inference does not capture browser data, form long-term schemas, store memory, o
 - Decides what retained activity should become semantic nodes and edges.
 - Normalizes activity text into stable themes.
 - Keeps cited source evidence attached to every retained packet.
-- Emits packet networks for Schema, Memory, Origin, Influence, and Website.
+- Emits packet networks for Schema, Memory, and app-specific query engines.
 - Runs without LLM reasoning.
 
 ## Input
@@ -111,7 +111,7 @@ npm run infer -- --input path\to\capture-snapshot.json --format json
 ## Contract
 
 - Input comes from Capture's public snapshot contract.
-- Output is evidence packets, not conclusions about a thought.
+- Output is evidence packets, not user-facing conclusions.
 - Output may contain candidate nodes and edges, but Schema decides whether they
   organize into durable cognitive-style schemas.
 - Schema decides whether repeated evidence forms a virtual schema.
