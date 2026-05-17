@@ -2,7 +2,7 @@
   "name": "memact-inference",
   "private": true,
   "version": "0.0.0",
-  "description": "Deterministic meaning layer for Memact captured activity.",
+  "description": "Deterministic meaning filter for approved activity before Memact intent prediction.",
   "license": "SEE LICENSE IN LICENSE",
   "type": "module",
   "main": "./src/engine.mjs",
@@ -15,6 +15,7 @@
     "inference",
     "themes",
     "meaning",
+    "intent",
     "deterministic"
   ],
   "repository": {
