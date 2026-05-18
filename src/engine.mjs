@@ -62,6 +62,7 @@ const HIGH_SIGNAL_INTERACTIONS = new Set([
 export function analyzeCaptureSnapshot(snapshot, options = {}) {
   const rules = options.themeRules ?? DEFAULT_THEME_RULES;
   const meaningfulThreshold = Number(options.meaningfulThreshold ?? DEFAULT_MEANINGFUL_THRESHOLD);
+  const provider = resolveSemanticProvider(options);
   const activities = normalizeActivities(snapshot);
   const inferred = activities.map((activity) =>
     inferActivityMeaning(activity, rules, { meaningfulThreshold })
@@ -80,6 +81,7 @@ export function analyzeCaptureSnapshot(snapshot, options = {}) {
       skipped_activity_count: skipped.length,
       event_count: Array.isArray(snapshot?.events) ? snapshot.events.length : null,
       session_count: Array.isArray(snapshot?.sessions) ? snapshot.sessions.length : null,
+      semantic_provider: provider,
     },
     thresholds: {
       meaningful_score: meaningfulThreshold,
@@ -90,6 +92,49 @@ export function analyzeCaptureSnapshot(snapshot, options = {}) {
     skipped_records: skipped.map(compactSkippedRecord),
     packet_network: buildPacketNetwork(retained),
   };
+}
+
+export async function analyzeCaptureSnapshotAsync(snapshot, options = {}) {
+  const rulesResult = analyzeCaptureSnapshot(snapshot, options);
+  const provider = resolveSemanticProvider(options);
+
+  if (provider.kind === "rules") {
+    return rulesResult;
+  }
+
+  if (provider.kind === "custom" || provider.kind === "local") {
+    const analyze = typeof options.analyze === "function"
+      ? options.analyze
+      : typeof options.semanticProvider === "function"
+        ? options.semanticProvider
+        : null;
+    if (!analyze) {
+      throw new TypeError(`${provider.kind} semantic provider requires an analyze() function.`);
+    }
+    const result = await analyze({ snapshot, rulesResult, provider });
+    return normalizeProviderResult(result, rulesResult, provider);
+  }
+
+  if (provider.kind === "remote") {
+    if (!options.endpoint) {
+      throw new TypeError("Remote semantic provider requires an explicit endpoint.");
+    }
+    if (typeof fetch !== "function") {
+      throw new TypeError("Remote semantic provider requires fetch support.");
+    }
+    const response = await fetch(options.endpoint, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ snapshot, rules_result: rulesResult }),
+    });
+    if (!response.ok) {
+      throw new Error(`Remote semantic provider failed with HTTP ${response.status}.`);
+    }
+    const result = await response.json();
+    return normalizeProviderResult(result, rulesResult, provider);
+  }
+
+  throw new TypeError(`Unsupported semantic provider: ${provider.kind}`);
 }
 
 export function inferActivityMeaning(activity, rules = DEFAULT_THEME_RULES, options = {}) {
@@ -363,6 +408,44 @@ function extractSources(activity) {
   }
 
   return Array.from(sources.values());
+}
+
+function resolveSemanticProvider(options = {}) {
+  const rawProvider = options.semanticProvider;
+  if (typeof rawProvider === "function") {
+    return {
+      kind: "custom",
+      name: normalizeText(options.providerName || "custom", 80) || "custom",
+      external: false,
+    };
+  }
+  const kind = normalizeText(rawProvider || (options.endpoint ? "remote" : "rules"), 40).toLowerCase();
+  return {
+    kind: ["rules", "local", "remote", "custom"].includes(kind) ? kind : "rules",
+    name: normalizeText(options.providerName || kind || "rules", 80) || "rules",
+    endpoint: kind === "remote" ? normalizeText(options.endpoint, 240) : "",
+    external: kind === "remote",
+  };
+}
+
+function normalizeProviderResult(result, rulesResult, provider) {
+  const base = result && typeof result === "object" ? result : {};
+  const records = Array.isArray(base.records) ? base.records : rulesResult.records;
+  const skippedRecords = Array.isArray(base.skipped_records) ? base.skipped_records : rulesResult.skipped_records;
+  return {
+    ...rulesResult,
+    ...base,
+    schema_version: base.schema_version || "memact.inference.v0",
+    generated_at: base.generated_at || new Date().toISOString(),
+    source: {
+      ...rulesResult.source,
+      ...(base.source || {}),
+      semantic_provider: provider,
+    },
+    records,
+    skipped_records: skippedRecords,
+    packet_network: base.packet_network || buildPacketNetwork(records),
+  };
 }
 
 function domainFromUrl(value) {
