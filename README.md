@@ -38,6 +38,17 @@ analyzeCaptureSnapshotAsync(snapshot, {
 Remote providers are opt-in. They must attach output to source evidence and
 return uncertainty when support is weak.
 
+## Current Code
+
+The rule-based v0 engine supports:
+
+- `analyzeCaptureEvent(event, options)`
+- `analyzeCaptureEvents(events, options)`
+- `analyzeCaptureSnapshot(snapshot, options)` for older snapshot callers
+
+The output is a semantic record, not a user-facing conclusion. Schema decides
+how repeated semantic records become reusable packets.
+
 ## Development
 
 ```powershell
