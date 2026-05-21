@@ -94,6 +94,41 @@ export function analyzeCaptureSnapshot(snapshot, options = {}) {
   };
 }
 
+export function analyzeCaptureEvent(event, options = {}) {
+  if (event?.skipped || event?.privacy_skip || event?.metadata?.skipped) {
+    return null;
+  }
+  const record = inferActivityMeaning(captureEventToActivity(event), options.themeRules ?? DEFAULT_THEME_RULES, options);
+  return {
+    schema_version: "memact.inference_record.v0",
+    record_id: record.id,
+    source_event_id: event.event_id || event.id || "",
+    meaningful: record.meaningful,
+    meaningful_score: record.meaningful_score,
+    canonical_themes: record.canonical_themes,
+    candidate_nodes: record.candidate_nodes,
+    candidate_edges: record.candidate_edges,
+    sources: record.sources,
+    created_at: new Date().toISOString(),
+    evidence: record.evidence,
+  };
+}
+
+export function analyzeCaptureEvents(events = [], options = {}) {
+  const records = (Array.isArray(events) ? events : [])
+    .map((event) => analyzeCaptureEvent(event, options))
+    .filter(Boolean);
+  return {
+    schema_version: "memact.inference.v0",
+    generated_at: new Date().toISOString(),
+    source: {
+      capture_event_count: Array.isArray(events) ? events.length : 0,
+      inference_record_count: records.length,
+    },
+    records,
+  };
+}
+
 export async function analyzeCaptureSnapshotAsync(snapshot, options = {}) {
   const rulesResult = analyzeCaptureSnapshot(snapshot, options);
   const provider = resolveSemanticProvider(options);
@@ -309,6 +344,25 @@ function activityFromContentUnit(unit, index) {
     full_text: unit?.text,
     display_full_text: unit?.text,
     content_units: [unit],
+  };
+}
+
+function captureEventToActivity(event = {}) {
+  const payload = event.payload && typeof event.payload === "object" ? event.payload : {};
+  return {
+    id: event.event_id || event.id,
+    started_at: event.occurred_at,
+    ended_at: event.occurred_at,
+    label: payload.title || payload.label || event.event_type,
+    title: payload.title,
+    url: payload.url,
+    domain: payload.domain,
+    application: event.source_app,
+    interaction_type: event.event_type,
+    content_text: payload.text || payload.content_text || payload.description,
+    full_text: payload.text || payload.content_text || payload.description,
+    category: event.category,
+    events: [event],
   };
 }
 
