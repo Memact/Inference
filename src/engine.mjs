@@ -99,18 +99,30 @@ export function analyzeCaptureEvent(event, options = {}) {
     return null;
   }
   const record = inferActivityMeaning(captureEventToActivity(event), options.themeRules ?? DEFAULT_THEME_RULES, options);
+  const articleSignals = inferArticleReadingSignals(event);
   return {
     schema_version: "memact.inference_record.v0",
     record_id: record.id,
     source_event_id: event.event_id || event.id || "",
+    category: normalizeText(event.category, 80),
+    event_type: normalizeText(event.event_type || event.type, 80),
     meaningful: record.meaningful,
-    meaningful_score: record.meaningful_score,
-    canonical_themes: record.canonical_themes,
-    candidate_nodes: record.candidate_nodes,
+    meaningful_score: Math.max(record.meaningful_score, articleSignals.meaningful_score || 0),
+    canonical_themes: uniqueValues([...record.canonical_themes, ...articleSignals.canonical_themes]),
+    candidate_nodes: [...record.candidate_nodes, ...articleSignals.candidate_nodes],
     candidate_edges: record.candidate_edges,
     sources: record.sources,
     created_at: new Date().toISOString(),
-    evidence: record.evidence,
+    evidence: {
+      ...record.evidence,
+      category: normalizeText(event.category, 80),
+      event_type: normalizeText(event.event_type || event.type, 80),
+      article_topic: normalizeText(event.payload?.topic, 120),
+      scroll_depth: Number(event.payload?.scroll_depth || 0),
+      read_time_seconds: Number(event.payload?.read_time_seconds || 0),
+      summary_style: normalizeText(event.payload?.summary_style, 80)
+    },
+    semantic_signals: articleSignals.signals
   };
 }
 
@@ -364,6 +376,76 @@ function captureEventToActivity(event = {}) {
     category: event.category,
     events: [event],
   };
+}
+
+function inferArticleReadingSignals(event = {}) {
+  const eventType = normalizeText(event.event_type || event.type, 80)
+  const payload = event.payload && typeof event.payload === "object" ? event.payload : {}
+  if (!["article_open", "article_read_time", "scroll_depth_update", "article_finish", "article_revisit", "topic_skip", "summary_expand", "summary_collapse"].includes(eventType)) {
+    return { meaningful_score: 0, canonical_themes: [], candidate_nodes: [], signals: [] }
+  }
+  const topic = normalizeText(payload.topic || payload.title, 120)
+  const signals = []
+  const themes = ["reading"]
+  const nodes = []
+  let score = 0.42
+
+  if (topic) {
+    themes.push(slug(topic))
+    nodes.push({ id: `topic:${slug(topic)}`, label: topic, type: "topic", confidence: 0.76 })
+    signals.push(`topic:${topic}`)
+  }
+  if (eventType === "article_finish") {
+    themes.push("completion")
+    signals.push("article finished")
+    score += 0.2
+  }
+  if (eventType === "topic_skip") {
+    themes.push("skipped_topic")
+    signals.push("topic skipped")
+    score += 0.16
+  }
+  if (eventType === "summary_expand") {
+    themes.push("summary_detail_preference")
+    signals.push("summary expanded")
+    score += 0.14
+  }
+  if (eventType === "summary_collapse") {
+    themes.push("quick_summary_preference")
+    signals.push("summary collapsed")
+    score += 0.14
+  }
+  const scrollDepth = Number(payload.scroll_depth || 0)
+  if (scrollDepth >= 75) {
+    themes.push("high_engagement")
+    signals.push("high scroll depth")
+    score += 0.16
+  } else if (scrollDepth > 0 && scrollDepth < 35) {
+    themes.push("low_engagement")
+    signals.push("low scroll depth")
+    score += 0.08
+  }
+  const readTime = Number(payload.read_time_seconds || 0)
+  if (readTime >= 180) {
+    themes.push("long_read")
+    signals.push("long read time")
+    score += 0.16
+  } else if (readTime > 0 && readTime < 45) {
+    themes.push("short_read")
+    signals.push("short read time")
+    score += 0.08
+  }
+
+  return {
+    meaningful_score: Math.min(1, score),
+    canonical_themes: uniqueValues(themes),
+    candidate_nodes: nodes,
+    signals
+  }
+}
+
+function uniqueValues(values = []) {
+  return [...new Set(values.filter(Boolean))]
 }
 
 export function formatInferenceReport(result) {
