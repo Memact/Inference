@@ -3,7 +3,7 @@
   "private": true,
   "version": "0.0.0",
   "description": "Semantic understanding layer for approved Memact activity signals before schema and feature processing.",
-  "license": "SEE LICENSE IN LICENSE",
+  "license": "MIT",
   "type": "module",
   "main": "./src/engine.mjs",
   "exports": {
